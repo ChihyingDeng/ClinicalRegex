@@ -1,4 +1,5 @@
 # ClinicalRegex
+[![DOI](https://zenodo.org/badge/217560091.svg)](https://zenodo.org/badge/latestdoi/217560091)
 
 ## Install dependencies
 
