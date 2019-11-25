@@ -19,7 +19,7 @@ class DataModel:
         if self.save_df is None or self.current_row_index is None:
             return
         self.save_df.to_csv(self.output_fname, index=False)
-        #print(self.save_df.iloc[284,1])
+        # print(self.save_df.iloc[284,1])
 
     def get_annotation(self):
         if self.annotation_key in self.output_df:
