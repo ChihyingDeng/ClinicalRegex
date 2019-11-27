@@ -14,10 +14,8 @@ test_xls = 'test_data.xls'
 test_txt = 'test_data.txt'
 
 
-
-#def load_test_data(filetype):
-#    global test_data_obj,test_data_row_list 
-
+# def load_test_data(filetype):
+#    global test_data_obj,test_data_row_list
 
 
 class TestExtractValues(unittest.TestCase):
@@ -71,13 +69,21 @@ class TestRPDR(unittest.TestCase):
         self.rpdr_file = StringIO("""\
             100000|HSP|10000|3000|10000|8/24/2014 12:00:00 AM|ED Discharge Summary|Final|DIS|Patient Hospice
             [report_end]
-        """)    
-        rpdr_note_1 = {'REPORT_NUMBER': '1000000', 'NOTE': "Report Status: Final\rED DISCHARGE NOTIFICATION\r\rThe patient presented with a chief complaint of sbo\rFollowing evaluation and treatment, the patient's disposition at the end of the\rvisit was admitted as an inpatient.\rPlease note this\rinformation may have been updated on the inpatient unit.\n", 'EMPI': '100000000', 'MRN_TYPE': 'HSP', 'MRN': '1000000', 'REPORT_TYPE': 'DIS', 'REPORT_DESCRIPTION': 'ED Discharge Summary', 'REPORT_DATE': '8/01/2011 12:00:00 AM'}
+        """)
+        rpdr_note_1 = {
+            'REPORT_NUMBER': '1000000',
+            'NOTE': "Report Status: Final\rED DISCHARGE NOTIFICATION\r\rThe patient presented with a chief complaint of sbo\rFollowing evaluation and treatment, the patient's disposition at the end of the\rvisit was admitted as an inpatient.\rPlease note this\rinformation may have been updated on the inpatient unit.\n",
+            'EMPI': '100000000',
+            'MRN_TYPE': 'HSP',
+            'MRN': '1000000',
+            'REPORT_TYPE': 'DIS',
+            'REPORT_DESCRIPTION': 'ED Discharge Summary',
+            'REPORT_DATE': '8/01/2011 12:00:00 AM'}
 
     def test_rpdr(self):
         file_ = "test_deidentified_rpdr_format.txt"
         f = extract_values.process_rpdr_file_unannotated(file_)
-        t = extract_values._filter_rpdr_notes_by_column_val(f,None,None)
+        t = extract_values._filter_rpdr_notes_by_column_val(f, None, None)
         note_dicts = [r.get_dictionary() for r in t]
         print(note_dicts[1])
 
@@ -89,10 +95,6 @@ class TestDependencies(unittest.TestCase):
     def test_correct_openpyxl(self):
         pass
 
-       
-
-
 
 if __name__ == "__main__":
     unittest.main()
-

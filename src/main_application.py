@@ -1,11 +1,10 @@
 import tkinter as tk
 from tkinter import font, filedialog, messagebox
-from model import DataModel
-from extract_values import run_regex
+from src.model import DataModel
+from src.extract_values import run_regex
 import pandas as pd
 import ast
 import re
-import time
 import os
 
 
@@ -258,13 +257,13 @@ class MainApplication(tk.Frame):
                         phrases.extend(self.phrases[i].split(','))
                         if not self.load_annotation:
                             self.data_model.output_df['L%d_' %
-                                                      i + self.label_name[i]] = 0
+                                                      i + self.label_name[i]] = None
                             self.data_model.output_df['L%d_' %
                                                       i + self.label_name[i] + '_span'] = None
                             self.data_model.output_df['L%d_' %
                                                       i + self.label_name[i] + '_text'] = None
                 self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
-                    lambda x: 1 if any(re.search(p, x.lower()) for p in phrases) else 0)
+                    lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in phrases) else 0)
                 if all(self.data_model.output_df['regex'] == 0):
                     self.data_model.output_df['regex'] = 1
                     messagebox.showerror(title="Warning",
@@ -294,7 +293,7 @@ class MainApplication(tk.Frame):
         else:
             try:
                 self.data_model.current_row_index = self.data_model.output_df.index[
-                    self.data_model.output_df['L1_' + self.label_name[1]] == 0].tolist()[0]
+                    self.data_model.output_df['L1_' + self.label_name[1]].isna()].tolist()[0]
             except BaseException:
                 self.data_model.current_row_index = 0
 
@@ -341,7 +340,7 @@ class MainApplication(tk.Frame):
         for i in range(1, 4):
             if self.phrases[i] != self.original_regex_text and len(
                     self.phrases[i]) > 0:
-                self.find_matches(
+                match_indices = self.find_matches(
                     self.phrases[i],
                     "keyword_%d" %
                     i,
@@ -350,10 +349,11 @@ class MainApplication(tk.Frame):
                     self.label_name[i] +
                     '_span',
                     input_df)
-                value = self.data_model.output_df.at[self.data_model.current_row_index,
-                                                     "L%d_" % i + self.label_name[i]]
-                if value == 0:
+
+                if match_indices:
                     value = '1'
+                else:
+                    value = '0'
                 self.ann_text[i].delete(0, tk.END)
                 self.ann_text[i].insert(0, value)
 
@@ -389,6 +389,8 @@ class MainApplication(tk.Frame):
             pos_end = '{}+{}c'.format(tag_start, end)
             self.pttext.tag_add(keyword, pos_start, pos_end)
 
+        return match_indices
+
     def save_matches(self, keyword, label_name, value='1'):
         tags = self.pttext.tag_ranges(keyword)
         match = ''
@@ -404,6 +406,8 @@ class MainApplication(tk.Frame):
             text += '{}'.format(self.pttext.get(tags[i], tags[i + 1]))
             match += '{},{}'.format(start, end)
         current_row_index = self.data_model.display_df.index[self.data_model.current_row_index]
+        if match and value == '0':
+            value = '1'
         self.data_model.output_df.at[current_row_index, label_name] = value
         self.data_model.output_df.at[current_row_index,
                                      label_name + '_span'] = match
@@ -820,7 +824,7 @@ class MainApplication(tk.Frame):
             font=textfont,
             bg=label_color[1],
             command=self.on_radio_click)
-        self.radio_1.grid(column=0, row=1, sticky='nse')
+        self.radio_1.grid(column=0, row=1, sticky='nsew')
 
         self.original_label_text[1] = "Label_1"
         self.label_text[1] = tk.Text(
@@ -861,7 +865,7 @@ class MainApplication(tk.Frame):
             text='Value',
             font=labelfont,
             bg=right_bg_color)
-        ann_1.grid(column=0, row=3, sticky='new')
+        ann_1.grid(column=0, row=3, sticky='nw')
         self.ann_text[1] = tk.Entry(text_regex_frame, font=textfont)
         self.ann_text[1].grid(column=1, row=3, sticky='new')
 
@@ -874,7 +878,7 @@ class MainApplication(tk.Frame):
             font=textfont,
             bg=label_color[2],
             command=self.on_radio_click)
-        self.radio_2.grid(column=0, row=5, sticky='nse')
+        self.radio_2.grid(column=0, row=5, sticky='nsew')
         self.original_label_text[2] = "Label_2"
         self.label_text[2] = tk.Text(
             text_regex_frame,
@@ -913,7 +917,7 @@ class MainApplication(tk.Frame):
             text='Value',
             font=labelfont,
             bg=right_bg_color)
-        ann_2.grid(column=0, row=7, sticky='new')
+        ann_2.grid(column=0, row=7, sticky='nw')
         self.ann_text[2] = tk.Entry(text_regex_frame, font=textfont)
         self.ann_text[2].grid(column=1, row=7, sticky='new')
 
@@ -926,7 +930,7 @@ class MainApplication(tk.Frame):
             font=textfont,
             bg=label_color[3],
             command=self.on_radio_click)
-        self.radio_3.grid(column=0, row=9, sticky='nse')
+        self.radio_3.grid(column=0, row=9, sticky='nsew')
         self.original_label_text[3] = "Label_3"
         self.label_text[3] = tk.Text(
             text_regex_frame,
@@ -965,7 +969,7 @@ class MainApplication(tk.Frame):
             text='Value',
             font=labelfont,
             bg=right_bg_color)
-        ann_3.grid(column=0, row=11, sticky='new')
+        ann_3.grid(column=0, row=11, sticky='nw')
         self.ann_text[3] = tk.Entry(text_regex_frame, font=textfont)
         self.ann_text[3].grid(column=1, row=11, sticky='new')
 

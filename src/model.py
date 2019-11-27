@@ -1,5 +1,7 @@
 import pandas as pd
 import numpy as np
+import os
+import sys
 
 
 # Maintains all of the data and handles the data manipulation for this
@@ -18,8 +20,12 @@ class DataModel:
     def write_to_annotation(self):
         if self.save_df is None or self.current_row_index is None:
             return
-        self.save_df.to_csv(self.output_fname, index=False)
-        # print(self.save_df.iloc[284,1])
+        pathname = os.path.dirname(sys.argv[0])
+        self.save_df.to_csv(
+            os.path.join(
+                pathname,
+                self.output_fname),
+            index=False)
 
     def get_annotation(self):
         if self.annotation_key in self.output_df:
