@@ -10,6 +10,7 @@ class DataModel:
     def __init__(self):
         self.input_fname = None
         self.output_fname = None
+        self.inpput_df = None
         self.output_df = None
         self.display_df = None
         self.save_df = None

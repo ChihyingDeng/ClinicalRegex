@@ -22,9 +22,6 @@ class MainApplication(tk.Frame):
         self.disable_button()
         self.load_annotation = False
         self.data_model = DataModel()
-        chkValue = tk.BooleanVar()
-        chkValue.set(False)
-        self.positive_checkbox.config(var=chkValue)
 
         file = filedialog.askopenfilename(title="Select File")
         if file:
@@ -236,10 +233,14 @@ class MainApplication(tk.Frame):
             if not self.load_annotation:
                 f = self.data_model.input_fname.split('.')[-1]
                 if 'xls' in f:
+                    self.data_model.input_df = pd.read_excel(
+                        self.data_model.input_fname)
                     self.data_model.output_df = pd.read_excel(
                         self.data_model.input_fname, usecols=[
                             self.patient_key, self.note_key])
                 else:
+                    self.data_model.input_df = pd.read_csv(
+                        self.data_model.input_fname)
                     self.data_model.output_df = pd.read_csv(
                         self.data_model.input_fname, usecols=[
                             self.patient_key, self.note_key])
@@ -437,6 +438,10 @@ class MainApplication(tk.Frame):
                 [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
         else:
             self.data_model.save_df = self.data_model.output_df
+        self.data_model.save_df = pd.merge(
+            self.data_model.save_df,
+            self.data_model.input_df,
+            on=self.patient_key)
         self.data_model.write_to_annotation()
 
     def on_prev(self):
@@ -639,6 +644,9 @@ class MainApplication(tk.Frame):
             lambda event: self.on_positive_checkbox_click(
                 event,
                 self.positive_checkbox))
+        chkValue = tk.BooleanVar()
+        chkValue.set(False)
+        self.positive_checkbox.config(var=chkValue)
 
         # Text frame
         text_frame = tk.Frame(left_frame, borderwidth=1, relief="sunken")
