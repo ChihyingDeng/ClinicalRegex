@@ -153,7 +153,7 @@ class MainApplication(tk.Frame):
         if not self.patient_key:
             messagebox.showerror(
                 title='Error',
-                message='Please input the column name for patient IDs.')
+                message='Please input the column name for note IDs.')
             return
 
         self.enable_button()
@@ -321,14 +321,14 @@ class MainApplication(tk.Frame):
         except BaseException:
             messagebox.showerror(
                 title='Error',
-                message='Unable to retrieve patient ID. Did you select the correct key?')
+                message='Unable to retrieve note ID. Did you select the correct key?')
             return
 
         self.number_label.config(
             text='%d of %d' %
             (self.data_model.current_row_index + 1, self.data_model.num_notes))
         self.patient_num_label.config(
-            text='Patient ID: %s' %
+            text='Note ID: %s' %
             current_patient_id)
 
         self.pttext.config(state=tk.NORMAL)
@@ -766,7 +766,7 @@ class MainApplication(tk.Frame):
 
         self.patient_id_label = tk.Label(
             self.right_options_frame,
-            text='Patient ID column key: ',
+            text='Note ID column key: ',
             font=labelfont,
             bg=right_bg_color)
         self.patient_id_label.grid(column=0, row=2, sticky='nsw')
