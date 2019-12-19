@@ -15,7 +15,8 @@ class MainApplication(tk.Frame):
         self.master = master
         self.setup_interface(master)
         self.data_model = DataModel()
-        self.checkvar = False
+        self.positivehit = False
+        self.patientlevel = False
 
     # Set up button click methods
     def on_select_file(self):
@@ -29,50 +30,9 @@ class MainApplication(tk.Frame):
             self.file_text.config(
                 text=self.data_model.input_fname.split('/')[-1])
         f = self.data_model.input_fname.split('.')[-1]
-        ## RPDR format ##
+        # RPDR to CSV
         if f == 'txt':
-            csvfile = ''.join(
-                self.data_model.input_fname.split('.')[
-                    :-1]) + '.csv'
-            # corresponding CSV already exist
-            if os.path.isfile(csvfile) and ('report_text' in pd.read_csv(
-                    csvfile).columns.values.tolist() or 'comments' in pd.read_csv(
-                    csvfile).columns.values.tolist()):
-                self.data_model.input_fname = ''.join(
-                    self.data_model.input_fname.split('.')[:-1]) + '.csv'
-            # reformat RPDR to CSV file
-            else:
-                with open(self.data_model.input_fname, 'r') as file:
-                    data, header, fields = [], [], []
-                    for line in file:
-                        line = line.rstrip()
-                        if line.strip() == '':
-                            continue
-                        if not header:
-                            if line.count('|') < 8:
-                                messagebox.showerror(
-                                    title="Error",
-                                    message="Something went wrong, did you select an appropriately formatted RPDR file to perform the Regex on?")
-                                return
-                            header = [field.lower().strip()
-                                      for field in line.split('|')]
-                            continue
-                        if not fields and '|' in line:
-                            fields = [field.lower().strip()
-                                      for field in line.split('|')]
-                            fields[-1] = line
-                            report = []
-                        elif 'report_end' in line:
-                            report.append(line)
-                            fields[-1] += '\n'.join(report)
-                            data.append(fields)
-                            fields = []
-                        else:
-                            report.append(line)
-                data = pd.DataFrame(data, columns=header)
-                self.data_model.input_fname = ''.join(
-                    self.data_model.input_fname.split('.')[:-1]) + '.csv'
-                data.to_csv(self.data_model.input_fname, index=False)
+            self.data_model.rpdr_to_csv()
 
         self.regex_button.config(state='normal')
         self.load_button.config(state='normal')
@@ -87,23 +47,31 @@ class MainApplication(tk.Frame):
             else:
                 OPTIONS = pd.read_csv(
                     self.data_model.input_fname).columns.values.tolist()
-
+            self.patient_id_entry.set(OPTIONS[0])
+            self.note_key_entry.set(OPTIONS[1])
+            # note ID column
             if 'empi' in OPTIONS:
                 self.patient_id_entry.set('empi')
             else:
-                self.patient_id_entry.set(OPTIONS[0])
-
+                for o in OPTIONS:
+                    if 'id' in o.lower():
+                        self.patient_id_entry.set(o)
+                        break
+            # report text column
             if 'report_text' in OPTIONS:
                 self.note_key_entry.set('report_text')
             elif 'comments' in OPTIONS:
                 self.note_key_entry.set('comments')
             else:
-                self.note_key_entry.set(OPTIONS[1])
-
+                for o in OPTIONS:
+                    if 'text' in o.lower():
+                        self.note_key_entry.set(o)
+                        break
+            # drop down menu
             try:
                 self.note_key_entry_menu = tk.OptionMenu(
                     self.right_options_frame, self.note_key_entry, *OPTIONS)
-                self.note_key_entry_menu.grid(column=1, row=1, sticky='we')
+                self.note_key_entry_menu.grid(column=1, row=3, sticky='we')
                 self.note_key_entry_menu.config(
                     font=font.Font(family='Roboto', size=12))
                 self.patient_id_entry_menu = tk.OptionMenu(
@@ -128,8 +96,7 @@ class MainApplication(tk.Frame):
                 title="Error",
                 message="Please select an input file using the 'Select File' button.")
             return
-
-        # Retrieve phrases
+        # retrieve phrases
         self.phrases = {}
         for i in range(1, 4):
             self.phrases[i] = self.regex_text[i].get(1.0, 'end-1c').strip()
@@ -141,7 +108,6 @@ class MainApplication(tk.Frame):
                 title="Error",
                 message="Please input comma-separated phrases to search for. ")
             return
-
         # get the note and id key from CSV or RPDR file
         self.note_key = self.note_key_entry.get()
         self.patient_key = self.patient_id_entry.get()
@@ -155,7 +121,6 @@ class MainApplication(tk.Frame):
                 title='Error',
                 message='Please input the column name for note IDs.')
             return
-
         self.enable_button()
         self.load_button.config(state='disabled')
 
@@ -171,34 +136,33 @@ class MainApplication(tk.Frame):
         self.data_model.output_df = pd.read_csv(
             self.data_model.input_fname)
         columns = self.data_model.output_df.columns.values.tolist()
-        if len(columns) not in [6, 10, 14] or 'L1_' not in columns[2]:
+        if 'L1_' not in columns[2] or 'L1_' not in columns[3] or 'L1_' not in columns[4] or 'K1_' not in columns[5]:
             messagebox.showerror(
                 title="Error",
                 message="Something went wrong, did you select an appropriately output CSV file?")
             return
         self.patient_key, self.note_key = columns[:2]
-        self.label_name[1] = columns[2][3:]
         self.phrases[2] = self.phrases[3] = self.original_regex_text
 
-        if len(columns) == 6:
-            self.phrases[1] = columns[-1][3:]
-        elif len(columns) == 10:
-            self.label_name[2] = columns[5][3:]
-            self.phrases[1] = columns[-2][3:]
-            self.phrases[2] = columns[-1][3:]
-        elif len(columns) == 14:
-            self.label_name[2] = columns[5][3:]
-            self.label_name[3] = columns[8][3:]
-            self.phrases[1] = columns[-3][3:]
-            self.phrases[2] = columns[-2][3:]
-            self.phrases[3] = columns[-1][3:]
+        try:
+            l, idx = 1, 2
+            while idx + \
+                    3 < len(columns) and l < 4 and 'L%d_' % l in columns[idx] and 'K%d_' % l in columns[idx + 3]:
+                self.label_name[l] = columns[idx][3:]
+                self.phrases[l] = columns[idx + 3][3:]
+                l += 1
+                idx += 4
+        except BaseException:
+            messagebox.showerror(
+                title="Error",
+                message="Something went wrong, did you select an appropriately output CSV file?")
+            return
 
-        for i in range(1, 4):
-            if len(columns) >= (2 + i * 4):
-                self.label_text[i].delete(1.0, tk.END)
-                self.label_text[i].insert(tk.END, self.label_name[i])
-                self.regex_text[i].delete(1.0, tk.END)
-                self.regex_text[i].insert(tk.END, self.phrases[i])
+        for i in range(1, l):
+            self.label_text[i].delete(1.0, tk.END)
+            self.label_text[i].insert(tk.END, self.label_name[i])
+            self.regex_text[i].delete(1.0, tk.END)
+            self.regex_text[i].insert(tk.END, self.phrases[i])
 
         self.enable_button()
 
@@ -228,6 +192,20 @@ class MainApplication(tk.Frame):
             cleaned = re.sub(r'\r', '', cleaned)
             return str(cleaned.strip())
 
+        def combine_keywords(text):
+            df = pd.DataFrame(
+                map(' '.join, zip(*[iter(text.split(' '))] * 100)), columns=['text'])
+            df['regex'] = df['text'].apply(
+                lambda x: 1 if any(
+                    re.search(
+                        r'(\W|^)' + p.lower(),
+                        x.lower()) for p in self.allphrases) else 0)
+            if all(df['regex'] == 0):
+                messagebox.showerror(
+                    title="Warning", message="No keywords found!")
+                return
+            return df[df['regex'] == 1].reset_index(
+                drop=True)['text'].str.cat(sep='\n----\n')
         # run regex
         try:
             if not self.load_annotation:
@@ -247,15 +225,24 @@ class MainApplication(tk.Frame):
                 self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].astype(
                     str).apply(lambda x: clean_phrase(x))
             else:
-                self.data_model.output_df = pd.read_csv(
+                self.data_model.input_df = self.data_model.output_df = pd.read_csv(
                     self.data_model.input_fname)
+
+            if self.patientlevel:
+                # concate report text on patient's level
+                self.data_model.output_df = self.data_model.output_df.groupby(
+                    self.patient_key)[
+                    self.note_key].apply(
+                    lambda x: '\n'.join(x)).to_frame().reset_index()
             # Display only positive hits
-            if self.checkvar:
-                phrases = []
+            if self.positivehit or self.patientlevel:
+                self.allphrases = []
                 for i in range(1, 4):
                     if self.phrases[i] != self.original_regex_text and len(
                             self.phrases[i]) > 0:
-                        phrases.extend(self.phrases[i].split(','))
+                        self.allphrases.extend(
+                            self.phrases[i].replace(
+                                ', ', ',').split(','))
                         if not self.load_annotation:
                             self.data_model.output_df['L%d_' %
                                                       i + self.label_name[i]] = None
@@ -263,20 +250,27 @@ class MainApplication(tk.Frame):
                                                       i + self.label_name[i] + '_span'] = None
                             self.data_model.output_df['L%d_' %
                                                       i + self.label_name[i] + '_text'] = None
-                self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
-                    lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in phrases) else 0)
-                if all(self.data_model.output_df['regex'] == 0):
-                    self.data_model.output_df['regex'] = 1
-                    messagebox.showerror(title="Warning",
-                                         message="No keywords found!")
-                self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(
-                    drop=True)
-                self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(
-                    drop=True)
-                self.data_model.output_df = self.data_model.output_df.drop(columns=[
-                    'regex'])
-                self.data_model.nokeyword_df = self.data_model.nokeyword_df.drop(columns=[
-                    'regex'])
+                            self.data_model.output_df['K%d_' %
+                                                      i + str(self.phrases[i])] = ''
+                if self.patientlevel:
+                    self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(
+                        lambda x: combine_keywords(x))
+                    self.data_model.nokeyword_df = []
+                else:
+                    self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
+                        lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
+                    if all(self.data_model.output_df['regex'] == 0):
+                        self.data_model.output_df['regex'] = 1
+                        messagebox.showerror(title="Warning",
+                                             message="No keywords found!")
+                    self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(
+                        drop=True)
+                    self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(
+                        drop=True)
+                    self.data_model.output_df = self.data_model.output_df.drop(columns=[
+                                                                               'regex'])
+                    self.data_model.nokeyword_df = self.data_model.nokeyword_df.drop(columns=[
+                                                                                     'regex'])
             else:
                 self.data_model.nokeyword_df = []
         except BaseException:
@@ -284,7 +278,6 @@ class MainApplication(tk.Frame):
                 title="Error",
                 message="Something went wrong, did you select an appropriately columns?")
             return
-
         self.data_model.output_fname = output_fname
         self.refresh_model()
 
@@ -315,7 +308,6 @@ class MainApplication(tk.Frame):
                 title='Error',
                 message='Unable to retrieve note text. Did you select the correct key?')
             return
-
         try:
             current_patient_id = current_note_row[self.patient_key]
         except BaseException:
@@ -327,9 +319,12 @@ class MainApplication(tk.Frame):
         self.number_label.config(
             text='%d of %d' %
             (self.data_model.current_row_index + 1, self.data_model.num_notes))
+        if self.patientlevel:
+            idtext = 'Patient ID: %s' % current_patient_id
+        else:
+            idtext = 'Note ID: %s' % current_patient_id
         self.patient_num_label.config(
-            text='Note ID: %s' %
-            current_patient_id)
+            text=idtext)
 
         self.pttext.config(state=tk.NORMAL)
         self.pttext.delete(1.0, tk.END)
@@ -350,10 +345,11 @@ class MainApplication(tk.Frame):
                     self.label_name[i] +
                     '_span',
                     input_df)
-
-                if match_indices:
+                value = current_note_row["L%d_" %
+                                         i + self.label_name[i]].astype(str)
+                if value == 'nan' and match_indices:
                     value = '1'
-                else:
+                elif value == 'nan':
                     value = '0'
                 self.ann_text[i].delete(0, tk.END)
                 self.ann_text[i].insert(0, value)
@@ -431,17 +427,16 @@ class MainApplication(tk.Frame):
                     i +
                     self.label_name[i],
                     value)
-                self.data_model.output_df['K%d_' %
-                                          i + str(self.phrases[i])] = ''
         if len(self.data_model.nokeyword_df) > 0:
             self.data_model.save_df = pd.concat(
                 [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
         else:
             self.data_model.save_df = self.data_model.output_df
-        self.data_model.save_df = pd.merge(
-            self.data_model.save_df,
-            self.data_model.input_df,
-            on=self.patient_key)
+        if not self.patientlevel and not self.load_annotation:
+            self.data_model.save_df = pd.merge(
+                self.data_model.save_df,
+                self.data_model.input_df,
+                on=self.patient_key)
         self.data_model.write_to_annotation()
 
     def on_prev(self):
@@ -489,13 +484,21 @@ class MainApplication(tk.Frame):
             widget.delete(1.0, 'end-1c')
 
     def on_positive_checkbox_click(self, event, widget):
-        if self.checkvar:
-            self.checkvar = False
+        if self.positivehit:
+            self.positivehit = False
         else:
-            self.checkvar = True
+            self.positivehit = True
         if self.data_model.output_df is not None:
             self.on_run_regex()
         self.refresh_model()
+
+    def on_patient_checkbox_click(self, event, widget):
+        if self.patientlevel:
+            self.patientlevel = False
+            self.patient_id_label.config(text='Note ID column: ')
+        else:
+            self.patientlevel = True
+            self.patient_id_label.config(text='Patient ID column: ')
 
     def on_radio_click(self):
         self.label = self.radio_value.get()
@@ -756,20 +759,41 @@ class MainApplication(tk.Frame):
         self.right_options_frame.grid_rowconfigure(0, weight=1)
         self.right_options_frame.grid_rowconfigure(1, weight=1)
         self.right_options_frame.grid_rowconfigure(2, weight=1)
+        self.right_options_frame.grid_rowconfigure(3, weight=1)
 
-        self.note_key_entry_label = tk.Label(
+        patient_checkbox_var = tk.BooleanVar()
+        self.patient_checkbox = tk.Checkbutton(
             self.right_options_frame,
-            text='Note column key: ',
+            text='On patient level',
             font=labelfont,
-            bg=right_bg_color)
-        self.note_key_entry_label.grid(column=0, row=1, sticky='nsw')
+            bg=right_bg_color,
+            variable=patient_checkbox_var,
+            offvalue=False,
+            onvalue=True)
+        self.patient_checkbox.var = patient_checkbox_var
+        self.patient_checkbox.grid(column=0, row=1, columnspan=2, sticky='ns')
+        self.patient_checkbox.bind(
+            "<Button-1>",
+            lambda event: self.on_patient_checkbox_click(
+                event,
+                self.patient_checkbox))
+        chkValue = tk.BooleanVar()
+        chkValue.set(False)
+        self.patient_checkbox.config(var=chkValue)
 
         self.patient_id_label = tk.Label(
             self.right_options_frame,
-            text='Note ID column key: ',
+            text='Note ID column: ',
             font=labelfont,
             bg=right_bg_color)
         self.patient_id_label.grid(column=0, row=2, sticky='nsw')
+
+        self.note_key_entry_label = tk.Label(
+            self.right_options_frame,
+            text='Report text column: ',
+            font=labelfont,
+            bg=right_bg_color)
+        self.note_key_entry_label.grid(column=0, row=3, sticky='nsw')
 
         # Right button regex container
         right_regex_frame = tk.Frame(right_frame, bg=right_bg_color)
