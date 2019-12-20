@@ -29,10 +29,14 @@ class MainApplication(tk.Frame):
             self.data_model.input_fname = file
             self.file_text.config(
                 text=self.data_model.input_fname.split('/')[-1])
+        else:
+            messagebox.showerror(
+                title="Error",
+                message="Something went wrong, did you select an appropriately file?")
+            return
         f = self.data_model.input_fname.split('.')[-1]
         # RPDR to CSV
-        if f == 'txt':
-            self.data_model.rpdr_to_csv()
+        if f == 'txt': self.data_model.rpdr_to_csv()
 
         self.regex_button.config(state='normal')
         self.load_button.config(state='normal')
@@ -54,9 +58,8 @@ class MainApplication(tk.Frame):
                 self.patient_id_entry.set('empi')
             else:
                 for o in OPTIONS:
-                    if 'id' in o.lower():
-                        self.patient_id_entry.set(o)
-                        break
+                    if 'id' in o.lower(): 
+                        self.patient_id_entry.set(o); break
             # report text column
             if 'report_text' in OPTIONS:
                 self.note_key_entry.set('report_text')
@@ -64,9 +67,8 @@ class MainApplication(tk.Frame):
                 self.note_key_entry.set('comments')
             else:
                 for o in OPTIONS:
-                    if 'text' in o.lower():
-                        self.note_key_entry.set(o)
-                        break
+                    if 'text' in o.lower(): 
+                        self.note_key_entry.set(o); break
             # drop down menu
             try:
                 self.note_key_entry_menu = tk.OptionMenu(
@@ -89,6 +91,7 @@ class MainApplication(tk.Frame):
                 title="Error",
                 message="Something went wrong, did you select an appropriately formatted RPDR or CSV file to perform the Regex on?")
             return
+
 
     def on_run_regex(self):
         if not self.data_model.input_fname:
@@ -124,6 +127,7 @@ class MainApplication(tk.Frame):
         self.enable_button()
         self.load_button.config(state='disabled')
 
+
     def on_load_annotation(self):
         if not self.data_model.input_fname or '.csv' not in self.data_model.input_fname:
             messagebox.showerror(
@@ -146,13 +150,11 @@ class MainApplication(tk.Frame):
 
         try:
             l, idx = 1, 2
-            while idx + \
-                    3 < len(columns) and l < 4 and 'L%d_' % l in columns[idx] and 'K%d_' % l in columns[idx + 3]:
+            while idx+3<len(columns) and l < 4 and 'L%d_'%l in columns[idx] and 'K%d_'%l in columns[idx+3]:
                 self.label_name[l] = columns[idx][3:]
-                self.phrases[l] = columns[idx + 3][3:]
-                l += 1
-                idx += 4
-        except BaseException:
+                self.phrases[l] = columns[idx+3][3:]
+                l += 1; idx += 4
+        except:
             messagebox.showerror(
                 title="Error",
                 message="Something went wrong, did you select an appropriately output CSV file?")
@@ -165,6 +167,7 @@ class MainApplication(tk.Frame):
             self.regex_text[i].insert(tk.END, self.phrases[i])
 
         self.enable_button()
+
 
     def enable_button(self):
         self.prev_button.config(state='normal')
@@ -193,19 +196,13 @@ class MainApplication(tk.Frame):
             return str(cleaned.strip())
 
         def combine_keywords(text):
-            df = pd.DataFrame(
-                map(' '.join, zip(*[iter(text.split(' '))] * 100)), columns=['text'])
+            df = pd.DataFrame(map(' '.join, zip(*[iter(text.split(' '))]*100)), columns=['text'])
             df['regex'] = df['text'].apply(
-                lambda x: 1 if any(
-                    re.search(
-                        r'(\W|^)' + p.lower(),
-                        x.lower()) for p in self.allphrases) else 0)
+                        lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
             if all(df['regex'] == 0):
-                messagebox.showerror(
-                    title="Warning", message="No keywords found!")
+                messagebox.showerror(title="Warning", message="No keywords found!")
                 return
-            return df[df['regex'] == 1].reset_index(
-                drop=True)['text'].str.cat(sep='\n----\n')
+            return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n')
         # run regex
         try:
             if not self.load_annotation:
@@ -223,26 +220,21 @@ class MainApplication(tk.Frame):
                         self.data_model.input_fname, usecols=[
                             self.patient_key, self.note_key])
                 self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].astype(
-                    str).apply(lambda x: clean_phrase(x))
+                    str).apply(lambda x: clean_phrase(x))  
             else:
                 self.data_model.input_df = self.data_model.output_df = pd.read_csv(
                     self.data_model.input_fname)
 
-            if self.patientlevel:
+            if self.patientlevel: 
                 # concate report text on patient's level
-                self.data_model.output_df = self.data_model.output_df.groupby(
-                    self.patient_key)[
-                    self.note_key].apply(
-                    lambda x: '\n'.join(x)).to_frame().reset_index()
+                self.data_model.output_df = self.data_model.output_df.groupby(self.patient_key)[self.note_key].apply(lambda x: '\n'.join(x)).to_frame().reset_index()
             # Display only positive hits
             if self.positivehit or self.patientlevel:
                 self.allphrases = []
                 for i in range(1, 4):
                     if self.phrases[i] != self.original_regex_text and len(
                             self.phrases[i]) > 0:
-                        self.allphrases.extend(
-                            self.phrases[i].replace(
-                                ', ', ',').split(','))
+                        self.allphrases.extend(self.phrases[i].replace(', ',',').split(','))
                         if not self.load_annotation:
                             self.data_model.output_df['L%d_' %
                                                       i + self.label_name[i]] = None
@@ -253,24 +245,19 @@ class MainApplication(tk.Frame):
                             self.data_model.output_df['K%d_' %
                                                       i + str(self.phrases[i])] = ''
                 if self.patientlevel:
-                    self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(
-                        lambda x: combine_keywords(x))
+                    self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(lambda x: combine_keywords(x)) 
                     self.data_model.nokeyword_df = []
-                else:
+                else: 
                     self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
                         lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
                     if all(self.data_model.output_df['regex'] == 0):
                         self.data_model.output_df['regex'] = 1
                         messagebox.showerror(title="Warning",
-                                             message="No keywords found!")
-                    self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(
-                        drop=True)
-                    self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(
-                        drop=True)
-                    self.data_model.output_df = self.data_model.output_df.drop(columns=[
-                                                                               'regex'])
-                    self.data_model.nokeyword_df = self.data_model.nokeyword_df.drop(columns=[
-                                                                                     'regex'])
+                                            message="No keywords found!")
+                    self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(drop=True)
+                    self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(drop=True)
+                    self.data_model.output_df = self.data_model.output_df.drop(columns=['regex'])
+                    self.data_model.nokeyword_df = self.data_model.nokeyword_df.drop(columns=['regex'])
             else:
                 self.data_model.nokeyword_df = []
         except BaseException:
@@ -280,6 +267,7 @@ class MainApplication(tk.Frame):
             return
         self.data_model.output_fname = output_fname
         self.refresh_model()
+
 
     def refresh_model(self):
         if not self.load_annotation:
@@ -299,8 +287,10 @@ class MainApplication(tk.Frame):
             except BaseException:
                 pass
 
+
     def display_output_note(self):
         current_note_row = self.data_model.display_df.iloc[self.data_model.current_row_index]
+        
         try:
             current_note_text = current_note_row[self.note_key]
         except BaseException:
@@ -315,24 +305,23 @@ class MainApplication(tk.Frame):
                 title='Error',
                 message='Unable to retrieve note ID. Did you select the correct key?')
             return
-
+        
         self.number_label.config(
             text='%d of %d' %
             (self.data_model.current_row_index + 1, self.data_model.num_notes))
-        if self.patientlevel:
-            idtext = 'Patient ID: %s' % current_patient_id
-        else:
-            idtext = 'Note ID: %s' % current_patient_id
+        if self.patientlevel: idtext = 'Patient ID: %s' % current_patient_id
+        else: idtext = 'Note ID: %s' % current_patient_id
         self.patient_num_label.config(
             text=idtext)
-
+        
         self.pttext.config(state=tk.NORMAL)
         self.pttext.delete(1.0, tk.END)
         self.pttext.insert(tk.END, current_note_text)
         self.pttext.config(state=tk.DISABLED)
-
+        
         input_df = self.data_model.display_df.iloc[[
             self.data_model.current_row_index]]
+        
         for i in range(1, 4):
             if self.phrases[i] != self.original_regex_text and len(
                     self.phrases[i]) > 0:
@@ -345,20 +334,18 @@ class MainApplication(tk.Frame):
                     self.label_name[i] +
                     '_span',
                     input_df)
-                value = current_note_row["L%d_" %
-                                         i + self.label_name[i]].astype(str)
-                if value == 'nan' and match_indices:
-                    value = '1'
-                elif value == 'nan':
-                    value = '0'
+                value = current_note_row["L%d_" %i + self.label_name[i]]
+                if (not value or value.astype(str) == 'nan')and match_indices: value = '1'
+                elif not value or value.astype(str) == 'nan' : value = '0'
+                else: value = value.astype(str)
                 self.ann_text[i].delete(0, tk.END)
                 self.ann_text[i].insert(0, value)
-
         self.pttext.tag_raise("sel")
         self.length, l = {}, 0
         for i in range(1, int(self.pttext.index("end").split('.')[0])):
             self.length[i] = l
             l += int(self.pttext.index(str(i) + ".end").split('.')[1]) + 1
+
 
     def find_matches(
             self,
@@ -388,6 +375,7 @@ class MainApplication(tk.Frame):
 
         return match_indices
 
+
     def save_matches(self, keyword, label_name, value='1'):
         tags = self.pttext.tag_ranges(keyword)
         match = ''
@@ -403,13 +391,13 @@ class MainApplication(tk.Frame):
             text += '{}'.format(self.pttext.get(tags[i], tags[i + 1]))
             match += '{},{}'.format(start, end)
         current_row_index = self.data_model.display_df.index[self.data_model.current_row_index]
-        if match and value == '0':
-            value = '1'
+        if match and value == '0': value = '1'
         self.data_model.output_df.at[current_row_index, label_name] = value
         self.data_model.output_df.at[current_row_index,
                                      label_name + '_span'] = match
         self.data_model.output_df.at[current_row_index,
                                      label_name + '_text'] = text
+
 
     def on_save_annotation(self):
         if self.data_model.output_fname[-4:] not in ['.csv', '.dta']:
@@ -438,6 +426,7 @@ class MainApplication(tk.Frame):
                 self.data_model.input_df,
                 on=self.patient_key)
         self.data_model.write_to_annotation()
+
 
     def on_prev(self):
         self.on_save_annotation()
@@ -531,9 +520,8 @@ class MainApplication(tk.Frame):
 
         # Laying out all main containers
         root.grid_rowconfigure(0, weight=1)
-        root.grid_columnconfigure(0, weight=1)
-        root.grid_columnconfigure(1, weight=1)
-        root.grid_columnconfigure(2, weight=1)
+        for i in range(3):
+            root.grid_columnconfigure(i, weight=1)
 
         left_frame.grid(
             column=0,
@@ -541,34 +529,19 @@ class MainApplication(tk.Frame):
             columnspan=2,
             rowspan=2,
             sticky='nsew')
-        left_frame.grid_rowconfigure(0, weight=1)
-        left_frame.grid_rowconfigure(1, weight=1)
-        left_frame.grid_rowconfigure(2, weight=1)
-        left_frame.grid_rowconfigure(3, weight=1)
-        left_frame.grid_rowconfigure(4, weight=1)
-        left_frame.grid_rowconfigure(5, weight=1)
-        left_frame.grid_rowconfigure(6, weight=1)
-        left_frame.grid_rowconfigure(7, weight=1)
-        left_frame.grid_rowconfigure(8, weight=1)
-        left_frame.grid_rowconfigure(9, weight=1)
-        left_frame.grid_rowconfigure(10, weight=1)
+        for i in range(11):
+            left_frame.grid_rowconfigure(i, weight=1)
         left_frame.grid_columnconfigure(0, weight=1)
         left_frame.grid_columnconfigure(1, weight=1)
 
         right_frame.grid(column=2, row=0, columnspan=2, sticky='nsew')
-        right_frame.grid_rowconfigure(0, weight=1)
-        right_frame.grid_rowconfigure(1, weight=1)
-        right_frame.grid_rowconfigure(2, weight=1)
-        right_frame.grid_rowconfigure(3, weight=1)
-        right_frame.grid_rowconfigure(4, weight=1)
-        right_frame.grid_rowconfigure(5, weight=1)
-        right_frame.grid_rowconfigure(6, weight=1)
-        right_frame.grid_rowconfigure(7, weight=1)
-        right_frame.grid_rowconfigure(8, weight=1)
-        right_frame.grid_rowconfigure(9, weight=1)
-        right_frame.grid_rowconfigure(10, weight=1)
+        for i in range(11):
+            right_frame.grid_rowconfigure(i, weight=1)
         right_frame.grid_columnconfigure(0, weight=1)
 
+        ########################################################
+        #                      Left Frame                      #
+        ########################################################
         # Left header first line
         header_frame = tk.Frame(left_frame, bg=left_bg_color)
         header_frame.grid(
@@ -596,9 +569,8 @@ class MainApplication(tk.Frame):
         button_frame = tk.Frame(header_frame, bg=left_bg_color)
         button_frame.grid(column=0, row=1, columnspan=1, sticky='nsew')
         button_frame.grid_propagate(False)
-        button_frame.grid_columnconfigure(0, weight=1)
-        button_frame.grid_columnconfigure(1, weight=1)
-        button_frame.grid_columnconfigure(2, weight=1)
+        for i in range(3):
+            button_frame.grid_columnconfigure(i, weight=1)
         button_frame.grid_rowconfigure(0, weight=1)
         button_frame.grid_rowconfigure(1, weight=1)
 
@@ -703,6 +675,9 @@ class MainApplication(tk.Frame):
         self.pttext.tag_config('keyword_3', background='#ffe6cc')
         self.pttext.bind("<1>", lambda event: self.pttext.focus_set())
 
+        ########################################################
+        #                      Right Frame                     #
+        ########################################################
         # Right upper frame
         right_upper_frame = tk.Frame(right_frame, bg=right_bg_color)
         right_upper_frame.grid(
@@ -756,10 +731,8 @@ class MainApplication(tk.Frame):
         self.right_options_frame.grid_propagate(False)
         self.right_options_frame.grid_columnconfigure(0, weight=1)
         self.right_options_frame.grid_columnconfigure(1, weight=1)
-        self.right_options_frame.grid_rowconfigure(0, weight=1)
-        self.right_options_frame.grid_rowconfigure(1, weight=1)
-        self.right_options_frame.grid_rowconfigure(2, weight=1)
-        self.right_options_frame.grid_rowconfigure(3, weight=1)
+        for i in range(4):
+            self.right_options_frame.grid_rowconfigure(i, weight=1)
 
         patient_checkbox_var = tk.BooleanVar()
         self.patient_checkbox = tk.Checkbutton(
@@ -795,41 +768,25 @@ class MainApplication(tk.Frame):
             bg=right_bg_color)
         self.note_key_entry_label.grid(column=0, row=3, sticky='nsw')
 
-        # Right button regex container
-        right_regex_frame = tk.Frame(right_frame, bg=right_bg_color)
-        right_regex_frame.grid(column=0, row=2, padx=10, sticky='nsew')
-        right_regex_frame.grid_propagate(False)
-        right_regex_frame.grid_columnconfigure(0, weight=1)
-        right_regex_frame.grid_rowconfigure(0, weight=1)
-
+        # Right label container
         # Label 1
-        text_regex_frame = tk.Frame(right_frame, bg=right_bg_color)
-        text_regex_frame.grid_rowconfigure(0, weight=1)
-        text_regex_frame.grid_rowconfigure(1, weight=2)
-        text_regex_frame.grid_rowconfigure(2, weight=4)
-        text_regex_frame.grid_rowconfigure(3, weight=1)
-        text_regex_frame.grid_rowconfigure(4, weight=4)
-        text_regex_frame.grid_rowconfigure(5, weight=2)
-        text_regex_frame.grid_rowconfigure(6, weight=4)
-        text_regex_frame.grid_rowconfigure(7, weight=1)
-        text_regex_frame.grid_rowconfigure(8, weight=4)
-        text_regex_frame.grid_rowconfigure(9, weight=2)
-        text_regex_frame.grid_rowconfigure(10, weight=4)
-        text_regex_frame.grid_rowconfigure(11, weight=1)
-        text_regex_frame.grid_rowconfigure(12, weight=4)
-        text_regex_frame.grid_columnconfigure(0, weight=1)
-        text_regex_frame.grid_columnconfigure(1, weight=3)
-        text_regex_frame.grid(
+        right_label_frame = tk.Frame(right_frame, bg=right_bg_color)
+        for i in range(13):
+            if i in [2,6,10]: right_label_frame.grid_rowconfigure(i, weight=6)
+            else: right_label_frame.grid_rowconfigure(i, weight=1)
+        right_label_frame.grid_columnconfigure(0, weight=1)
+        right_label_frame.grid_columnconfigure(1, weight=3)
+        right_label_frame.grid(
             column=0,
             row=2,
             rowspan=7,
             padx=10,
             pady=10,
             sticky='nsew')
-        text_regex_frame.grid_propagate(False)
+        right_label_frame.grid_propagate(False)
 
         regex_title = tk.Label(
-            text_regex_frame,
+            right_label_frame,
             text='Labels',
             font=boldfont,
             bg=right_bg_color)
@@ -839,156 +796,90 @@ class MainApplication(tk.Frame):
         self.label_text = {}
         self.regex_text = {}
         self.ann_text = {}
+        self.radio, self.ann = {}, {}
         self.original_label_text = {}
+        self.original_regex_text = "Type comma-separated regex/keywords here."
 
         self.radio_value = tk.IntVar()
         self.radio_value.set(1)
         self.label = 1
         label_color = {1: '#ff99ff', 2: '#cc99ff', 3: '#ffcc99'}
         text_color = {1: '#ffe6ff', 2: 'white', 3: 'white'}
+        rowstart = 0
 
         # Label 1
-        self.radio_1 = tk.Radiobutton(
-            text_regex_frame,
-            text='',
-            variable=self.radio_value,
-            value=1,
-            font=textfont,
-            bg=label_color[1],
-            command=self.on_radio_click)
-        self.radio_1.grid(column=0, row=1, sticky='nsew')
+        for i in range(1,4):
+            self.radio[i] = tk.Radiobutton(
+                right_label_frame,
+                text='',
+                variable=self.radio_value,
+                value=i,
+                font=textfont,
+                bg=label_color[i],
+                command=self.on_radio_click)
+            self.radio[i].grid(column=0, row=rowstart+1, sticky='nsew')
 
-        self.original_label_text[1] = "Label_1"
-        self.label_text[1] = tk.Text(
-            text_regex_frame,
-            font=font.Font(family='Roboto', size=14, weight='bold'),
-            highlightthickness=0,
-            height=1,
-            width=30,
-            bg=label_color[1])
-        self.label_text[1].insert(tk.END, self.original_label_text[1])
-        self.label_text[1].grid(column=1, row=1, sticky='nswe')
+            self.original_label_text[i] = "Label_%d"%i
+            self.label_text[i] = tk.Text(
+                right_label_frame,
+                font=font.Font(family='Roboto', size=14, weight='bold'),
+                highlightthickness=0,
+                height=1,
+                width=30,
+                bg=label_color[i])
+            self.label_text[i].insert(tk.END, self.original_label_text[i])
+            self.label_text[i].grid(column=1, row=rowstart+1, sticky='nswe')
+
+            self.regex_text[i] = tk.Text(
+                right_label_frame,
+                font=labelfont,
+                borderwidth=1,
+                highlightthickness=0,
+                height=2,
+                bg=text_color[i])
+            self.regex_text[i].insert(tk.END, self.original_regex_text)
+            self.regex_text[i].grid(column=0, row=rowstart+2, columnspan=2, sticky='nsew')
+
+            self.ann[i] = tk.Label(
+                right_label_frame,
+                text='Value',
+                font=labelfont,
+                bg=right_bg_color)
+            self.ann[i].grid(column=0, row=rowstart+3, sticky='nw')
+            self.ann_text[i] = tk.Entry(right_label_frame, font=textfont)
+            self.ann_text[i].grid(column=1, row=rowstart+3, sticky='new')
+            rowstart += 4
+
         self.label_text[1].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
                 event,
                 self.label_text[1],
                 self.original_label_text[1]))
-
-        self.original_regex_text = "Type comma-separated regex/keywords here."
-        self.regex_text[1] = tk.Text(
-            text_regex_frame,
-            font=labelfont,
-            borderwidth=5,
-            highlightthickness=0,
-            height=2,
-            bg=text_color[1])
-        self.regex_text[1].insert(tk.END, self.original_regex_text)
-        self.regex_text[1].grid(column=0, row=2, columnspan=2, sticky='nsew')
         self.regex_text[1].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
                 event,
                 self.regex_text[1],
                 self.original_regex_text))
-
-        ann_1 = tk.Label(
-            text_regex_frame,
-            text='Value',
-            font=labelfont,
-            bg=right_bg_color)
-        ann_1.grid(column=0, row=3, sticky='nw')
-        self.ann_text[1] = tk.Entry(text_regex_frame, font=textfont)
-        self.ann_text[1].grid(column=1, row=3, sticky='new')
-
-        # Label 2
-        self.radio_2 = tk.Radiobutton(
-            text_regex_frame,
-            text='',
-            variable=self.radio_value,
-            value=2,
-            font=textfont,
-            bg=label_color[2],
-            command=self.on_radio_click)
-        self.radio_2.grid(column=0, row=5, sticky='nsew')
-        self.original_label_text[2] = "Label_2"
-        self.label_text[2] = tk.Text(
-            text_regex_frame,
-            font=textfont,
-            highlightthickness=0,
-            height=1,
-            width=30,
-            bg=label_color[2])
-        self.label_text[2].insert(tk.END, self.original_label_text[2])
-        self.label_text[2].grid(column=1, row=5, sticky='nsew')
         self.label_text[2].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
                 event,
                 self.label_text[2],
                 self.original_label_text[2]))
-
-        self.regex_text[2] = tk.Text(
-            text_regex_frame,
-            font=labelfont,
-            borderwidth=1,
-            highlightthickness=0,
-            height=2,
-            bg=text_color[2])
-        self.regex_text[2].insert(tk.END, self.original_regex_text)
-        self.regex_text[2].grid(column=0, row=6, columnspan=2, sticky='nsew')
         self.regex_text[2].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
                 event,
                 self.regex_text[2],
                 self.original_regex_text))
-
-        ann_2 = tk.Label(
-            text_regex_frame,
-            text='Value',
-            font=labelfont,
-            bg=right_bg_color)
-        ann_2.grid(column=0, row=7, sticky='nw')
-        self.ann_text[2] = tk.Entry(text_regex_frame, font=textfont)
-        self.ann_text[2].grid(column=1, row=7, sticky='new')
-
-        # Label 3
-        self.radio_3 = tk.Radiobutton(
-            text_regex_frame,
-            text='',
-            variable=self.radio_value,
-            value=3,
-            font=textfont,
-            bg=label_color[3],
-            command=self.on_radio_click)
-        self.radio_3.grid(column=0, row=9, sticky='nsew')
-        self.original_label_text[3] = "Label_3"
-        self.label_text[3] = tk.Text(
-            text_regex_frame,
-            font=textfont,
-            highlightthickness=0,
-            height=1,
-            width=30,
-            bg=label_color[3])
-        self.label_text[3].insert(tk.END, self.original_label_text[3])
-        self.label_text[3].grid(column=1, row=9, sticky='nswe')
         self.label_text[3].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
                 event,
                 self.label_text[3],
                 self.original_label_text[3]))
-
-        self.regex_text[3] = tk.Text(
-            text_regex_frame,
-            font=labelfont,
-            borderwidth=1,
-            highlightthickness=0,
-            height=2,
-            bg=text_color[3])
-        self.regex_text[3].insert(tk.END, self.original_regex_text)
-        self.regex_text[3].grid(column=0, row=10, columnspan=2, sticky='nsew')
         self.regex_text[3].bind(
             "<Button-1>",
             lambda event: self.clear_textbox(
@@ -996,27 +887,18 @@ class MainApplication(tk.Frame):
                 self.regex_text[3],
                 self.original_regex_text))
 
-        ann_3 = tk.Label(
-            text_regex_frame,
-            text='Value',
-            font=labelfont,
-            bg=right_bg_color)
-        ann_3.grid(column=0, row=11, sticky='nw')
-        self.ann_text[3] = tk.Entry(text_regex_frame, font=textfont)
-        self.ann_text[3].grid(column=1, row=11, sticky='new')
 
-        # Right regex button container
-        right_regex_button_frame = tk.Frame(right_frame, bg=right_bg_color)
-        right_regex_button_frame.grid(
+        # Right button container
+        right_button_frame = tk.Frame(right_frame, bg=right_bg_color)
+        right_button_frame.grid(
             column=0, row=9, rowspan=2, padx=10, sticky='nsew')
-        right_regex_button_frame.grid_propagate(False)
-        right_regex_button_frame.grid_columnconfigure(0, weight=1)
-        right_regex_button_frame.grid_rowconfigure(0, weight=1)
-        right_regex_button_frame.grid_rowconfigure(1, weight=1)
-        right_regex_button_frame.grid_rowconfigure(2, weight=1)
+        right_button_frame.grid_propagate(False)
+        right_button_frame.grid_columnconfigure(0, weight=1)
+        for i in range(3):
+            right_button_frame.grid_rowconfigure(i, weight=1)
 
         self.regex_button = tk.Button(
-            right_regex_button_frame,
+            right_button_frame,
             text='Run Regex',
             font=textfont,
             state='disabled',
@@ -1024,7 +906,7 @@ class MainApplication(tk.Frame):
         self.regex_button.grid(column=0, row=0, sticky='nwe')
 
         self.load_button = tk.Button(
-            right_regex_button_frame,
+            right_button_frame,
             text='Load annotation',
             font=textfont,
             state='disabled',
@@ -1033,7 +915,7 @@ class MainApplication(tk.Frame):
         self.load_annotation = False
 
         self.save_button = tk.Button(
-            right_regex_button_frame,
+            right_button_frame,
             text='Save',
             font=textfont,
             state='disabled',
