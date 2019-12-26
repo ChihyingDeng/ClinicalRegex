@@ -199,10 +199,8 @@ class MainApplication(tk.Frame):
             df = pd.DataFrame(map(' '.join, zip(*[iter(text.split(' '))]*100)), columns=['text'])
             df['regex'] = df['text'].apply(
                         lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
-            if all(df['regex'] == 0):
-                messagebox.showerror(title="Warning", message="No keywords found!")
-                return
-            return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n')
+            return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n') if any(df['regex'] == 1) else "No keywords found!"
+            
         # run regex
         try:
             if not self.load_annotation:
@@ -223,10 +221,9 @@ class MainApplication(tk.Frame):
                     str).apply(lambda x: clean_phrase(x))  
             else:
                 self.data_model.input_df = self.data_model.output_df = pd.read_csv(
-                    self.data_model.input_fname)
-
+                    self.data_model.input_fname)              
+            # Concate report text on patient's level
             if self.patientlevel: 
-                # concate report text on patient's level
                 self.data_model.output_df = self.data_model.output_df.groupby(self.patient_key)[self.note_key].apply(lambda x: '\n'.join(x)).to_frame().reset_index()
             # Display only positive hits
             if self.positivehit or self.patientlevel:
@@ -807,7 +804,7 @@ class MainApplication(tk.Frame):
         text_color = {1: '#ffe6ff', 2: 'white', 3: 'white'}
         rowstart = 0
 
-        # Label 1
+        # Labels
         for i in range(1,4):
             self.radio[i] = tk.Radiobutton(
                 right_label_frame,
