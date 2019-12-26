@@ -22,14 +22,10 @@ class DataModel:
         csvfile = ''.join(
             self.input_fname.split('.')[
                 :-1]) + '.csv'
-        # corresponding CSV already exist
-        if os.path.isfile(csvfile) and ('report_text' in pd.read_csv(
+        # reformat RPDR to CSV file
+        if not os.path.isfile(csvfile) or not ('report_text' in pd.read_csv(
                 csvfile).columns.values.tolist() or 'comments' in pd.read_csv(
                 csvfile).columns.values.tolist()):
-            self.input_fname = ''.join(
-                self.input_fname.split('.')[:-1]) + '.csv'
-        # reformat RPDR to CSV file
-        else:
             with open(self.input_fname, 'r') as file:
                 data, header, fields = [], [], []
                 for line in file:
@@ -57,9 +53,8 @@ class DataModel:
                         fields = []
                     else:
                         report.append(line)
+            self.input_fname = csvfile
             data = pd.DataFrame(data, columns=header)
-            self.input_fname = ''.join(
-                self.input_fname.split('.')[:-1]) + '.csv'
             data.to_csv(self.input_fname, index=False)
 
     def write_to_annotation(self):
@@ -69,6 +64,7 @@ class DataModel:
         self.save_df.to_csv(
             os.path.join(
                 pathname,
+                '/'.join(self.input_fname.split('/')[:-1]),
                 self.output_fname),
             index=False)
 
