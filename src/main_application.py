@@ -200,7 +200,7 @@ class MainApplication(tk.Frame):
             df['regex'] = df['text'].apply(
                         lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
             return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n') if any(df['regex'] == 1) else "No keywords found!"
-            
+
         # run regex
         try:
             if not self.load_annotation:
@@ -685,8 +685,9 @@ class MainApplication(tk.Frame):
             sticky='nsew')
         right_upper_frame.grid_propagate(False)
         right_upper_frame.grid_rowconfigure(0, weight=1)
-        right_upper_frame.grid_columnconfigure(0, weight=1)
-        right_upper_frame.grid_columnconfigure(1, weight=1)
+        right_upper_frame.grid_columnconfigure(0, weight=4)
+        right_upper_frame.grid_columnconfigure(1, weight=4)
+        right_upper_frame.grid_columnconfigure(2, weight=1)
 
         in_file_text = tk.Label(
             right_upper_frame,
@@ -695,12 +696,12 @@ class MainApplication(tk.Frame):
             bg=right_bg_color)
         in_file_text.grid(column=0, row=0, sticky='nsw')
 
-        file_button = tk.Button(
+        self.file_button = tk.Button(
             right_upper_frame,
             text='Select',
             command=self.on_select_file,
             bg=right_bg_color)
-        file_button.grid(column=1, row=0, sticky='e')
+        self.file_button.grid(column=2, row=0, sticky='e')
 
         self.file_text = tk.Label(
             right_upper_frame,
@@ -719,7 +720,7 @@ class MainApplication(tk.Frame):
 
         self.regex_label = tk.Entry(right_upper_frame, font=labelfont)
         self.regex_label.insert(0, 'output.csv')
-        self.regex_label.grid(column=1, row=1, sticky='nswe')
+        self.regex_label.grid(column=1, columnspan=2, row=1, sticky='nswe')
 
         # Right upper regex options container
         self.right_options_frame = tk.Frame(right_frame, bg=right_bg_color)

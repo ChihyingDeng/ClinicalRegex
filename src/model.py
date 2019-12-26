@@ -22,10 +22,13 @@ class DataModel:
         csvfile = ''.join(
             self.input_fname.split('.')[
                 :-1]) + '.csv'
-        # reformat RPDR to CSV file
-        if not os.path.isfile(csvfile) or not ('report_text' in pd.read_csv(
+        # corresponding CSV file exist
+        if  os.path.isfile(csvfile) and ('report_text' in pd.read_csv(
                 csvfile).columns.values.tolist() or 'comments' in pd.read_csv(
                 csvfile).columns.values.tolist()):
+                self.input_fname = csvfile
+        # reformat RPDR to CSV file
+        else:
             with open(self.input_fname, 'r') as file:
                 data, header, fields = [], [], []
                 for line in file:
