@@ -138,7 +138,7 @@ class MainApplication(tk.Frame):
         self.load_annotation = True
         self.regex_button.config(state='disabled')
         self.data_model.output_df = pd.read_csv(
-            self.data_model.input_fname)
+            self.data_model.input_fname)         
         columns = self.data_model.output_df.columns.values.tolist()
         if 'L1_' not in columns[2] or 'L1_' not in columns[3] or 'L1_' not in columns[4] or 'K1_' not in columns[5]:
             messagebox.showerror(
@@ -217,6 +217,11 @@ class MainApplication(tk.Frame):
                     self.data_model.output_df = pd.read_csv(
                         self.data_model.input_fname, usecols=[
                             self.patient_key, self.note_key])
+                if not self.patientlevel and (len(self.data_model.output_df) != len(self.data_model.output_df[self.patient_key].unique())):
+                    messagebox.showerror(
+                        title="Error",
+                        message="Please select an 'unique' note ID")
+                    return   
                 self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].astype(
                     str).apply(lambda x: clean_phrase(x))  
             else:
@@ -412,16 +417,19 @@ class MainApplication(tk.Frame):
                     i +
                     self.label_name[i],
                     value)
+        # concat all the rows with or without keywords
         if len(self.data_model.nokeyword_df) > 0:
             self.data_model.save_df = pd.concat(
                 [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
         else:
             self.data_model.save_df = self.data_model.output_df
+        # merge all the input file columns
         if not self.patientlevel and not self.load_annotation:
             self.data_model.save_df = pd.merge(
-                self.data_model.save_df,
+                self.data_model.save_df.drop(columns=[self.note_key]),
                 self.data_model.input_df,
                 on=self.patient_key)
+        self.data_model.note_key = self.note_key
         self.data_model.write_to_annotation()
 
 

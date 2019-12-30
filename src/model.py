@@ -14,6 +14,7 @@ class DataModel:
         self.output_df = None
         self.display_df = None
         self.save_df = None
+        self.note_key = None
         self.current_row_index = None
         self.num_notes = None
         self.annotation_key = 'ANNOTATION'
@@ -69,6 +70,12 @@ class DataModel:
                 pathname,
                 '/'.join(self.input_fname.split('/')[:-1]),
                 self.output_fname),
+            index=False)
+        self.save_df.drop(columns=[self.note_key]).to_csv(
+            os.path.join(
+                pathname,
+                '/'.join(self.input_fname.split('/')[:-1]),
+                'norpt_' + self.output_fname),
             index=False)
 
     def get_annotation(self):
