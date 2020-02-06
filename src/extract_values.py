@@ -99,13 +99,7 @@ class ClinicianNotes(object):
 
         string_lookup = {
             self.PHRASE_TYPE_WORD: [
-                r'(\s%s\s)',
-                r'(^%s\s)',
-                r'(\s%s$)',
-                r'(^%s)',
-                r'(\s%s(?=\W))',
-                r'(^%s(?=\W))',
-                r'((?<=\W)%s)'],
+                r'((^|\s|(?<=\W))%s(s|es|ies|ed|ied|ing|ment|ement|e|y|)($|\s|(?=\W)))'],
             self.PHRASE_TYPE_NUM: [r'(?:%s)\s*(?:of|is|was|were|are|\:)?[:]*[\s]*([0-9]+\.?[0-9]*)'],
             self.PHRASE_TYPE_DATE: [
                 r'(?:%s)\s*(?:of|is|was|were|are|\:)?[:]*[\s]*(\d+/\d+/\d+)',
@@ -124,7 +118,8 @@ class ClinicianNotes(object):
         for phrase in self.phrases:
 
             for pattern_string in pattern_strings:
-
+                if phrase.endswith('e') or phrase.endswith('y'):
+                    phrase = phrase[0:-1]
                 pattern_string = pattern_string % phrase
                 re_flags = re.I | re.M | re.DOTALL
                 pattern = re.compile(pattern_string, flags=re_flags)

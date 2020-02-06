@@ -15,8 +15,9 @@ class MainApplication(tk.Frame):
         self.master = master
         self.setup_interface(master)
         self.data_model = DataModel()
-        self.positivehit = False
+        self.positivehit = True
         self.patientlevel = False
+        self.outputlite = True
 
     # Set up button click methods
     def on_select_file(self):
@@ -195,10 +196,16 @@ class MainApplication(tk.Frame):
             cleaned = re.sub(r'\r', '', cleaned)
             return str(cleaned.strip())
 
+        def search_keywords(text):
+            for p in self.allphrases:
+                if p.endswith('e') or p.endswith('y'): p = p[0:-1] 
+                if re.search('((^|\s|(?<=\W))%s(s|es|ies|ed|ied|ing|ment|ement|e|y|)($|\s|(?=\W)))'%(p.lower()), text.lower()): return 1
+            return 0
+
         def combine_keywords(text):
             df = pd.DataFrame(map(' '.join, zip(*[iter(text.split(' '))]*100)), columns=['text'])
             df['regex'] = df['text'].apply(
-                        lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
+                        lambda x: search_keywords(x))
             return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n') if any(df['regex'] == 1) else "No keywords found!"
 
         # run regex
@@ -248,10 +255,12 @@ class MainApplication(tk.Frame):
                                                       i + str(self.phrases[i])] = ''
                 if self.patientlevel:
                     self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(lambda x: combine_keywords(x)) 
+                    self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].str.contains("No keywords found!")
+                    self.data_model.output_df = self.data_model.output_df.sort_values(by='regex').drop(columns=['regex'])
                     self.data_model.nokeyword_df = []
                 else: 
                     self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
-                        lambda x: 1 if any(re.search('(\W|^)' + p.lower(), x.lower()) for p in self.allphrases) else 0)
+                        lambda x: search_keywords(x))
                     if all(self.data_model.output_df['regex'] == 0):
                         self.data_model.output_df['regex'] = 1
                         messagebox.showerror(title="Warning",
@@ -417,18 +426,21 @@ class MainApplication(tk.Frame):
                     i +
                     self.label_name[i],
                     value)
-        # concat all the rows with or without keywords
-        if len(self.data_model.nokeyword_df) > 0:
-            self.data_model.save_df = pd.concat(
-                [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
-        else:
+        if self.outputlite:
             self.data_model.save_df = self.data_model.output_df
-        # merge all the input file columns
-        if not self.patientlevel and not self.load_annotation:
-            self.data_model.save_df = pd.merge(
-                self.data_model.save_df.drop(columns=[self.note_key]),
-                self.data_model.input_df,
-                on=self.patient_key)
+        else:
+            # concat all the rows with or without keywords
+            if len(self.data_model.nokeyword_df) > 0:
+                self.data_model.save_df = pd.concat(
+                    [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
+            else:
+                self.data_model.save_df = self.data_model.output_df
+            # merge all the input file columns
+            if not self.patientlevel and not self.load_annotation:
+                self.data_model.save_df = pd.merge(
+                    self.data_model.save_df.drop(columns=[self.note_key]),
+                    self.data_model.input_df,
+                    on=self.patient_key)
         self.data_model.note_key = self.note_key
         self.data_model.write_to_annotation()
 
@@ -493,6 +505,12 @@ class MainApplication(tk.Frame):
         else:
             self.patientlevel = True
             self.patient_id_label.config(text='Patient ID column: ')
+
+    def on_output_checkbox_click(self, event, widget):
+        if self.outputlite:
+            self.outputlite = False
+        else:
+            self.outputlite = True
 
     def on_radio_click(self):
         self.label = self.radio_value.get()
@@ -609,6 +627,7 @@ class MainApplication(tk.Frame):
 
         # Filter checkbox
         positive_checkbox_var = tk.BooleanVar()
+        positive_checkbox_var.set(True)
         self.positive_checkbox = tk.Checkbutton(
             header_frame,
             text='Display only positive hits',
@@ -624,9 +643,6 @@ class MainApplication(tk.Frame):
             lambda event: self.on_positive_checkbox_click(
                 event,
                 self.positive_checkbox))
-        chkValue = tk.BooleanVar()
-        chkValue.set(False)
-        self.positive_checkbox.config(var=chkValue)
 
         # Text frame
         text_frame = tk.Frame(left_frame, borderwidth=1, relief="sunken")
@@ -741,6 +757,7 @@ class MainApplication(tk.Frame):
             self.right_options_frame.grid_rowconfigure(i, weight=1)
 
         patient_checkbox_var = tk.BooleanVar()
+        patient_checkbox_var.set(False)
         self.patient_checkbox = tk.Checkbutton(
             self.right_options_frame,
             text='On patient level',
@@ -750,15 +767,30 @@ class MainApplication(tk.Frame):
             offvalue=False,
             onvalue=True)
         self.patient_checkbox.var = patient_checkbox_var
-        self.patient_checkbox.grid(column=0, row=1, columnspan=2, sticky='ns')
+        self.patient_checkbox.grid(column=0, row=1, sticky='wns')
         self.patient_checkbox.bind(
             "<Button-1>",
             lambda event: self.on_patient_checkbox_click(
                 event,
                 self.patient_checkbox))
-        chkValue = tk.BooleanVar()
-        chkValue.set(False)
-        self.patient_checkbox.config(var=chkValue)
+
+        output_checkbox_var = tk.BooleanVar()
+        output_checkbox_var.set(True)
+        self.output_checkbox = tk.Checkbutton(
+            self.right_options_frame,
+            text='Lite output',
+            font=labelfont,
+            bg=right_bg_color,
+            variable=output_checkbox_var,
+            offvalue=False,
+            onvalue=True)
+        self.output_checkbox.var = output_checkbox_var
+        self.output_checkbox.grid(column=1, row=1, sticky='ens')
+        self.output_checkbox.bind(
+            "<Button-1>",
+            lambda event: self.on_output_checkbox_click(
+                event,
+                self.patient_checkbox))
 
         self.patient_id_label = tk.Label(
             self.right_options_frame,
