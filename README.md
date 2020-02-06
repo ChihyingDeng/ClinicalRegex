@@ -12,7 +12,7 @@ pip3 install -r requirements.txt
 
 ## Start Program
 ```
-python3 src/main.py
+python3 main.py
 ```
 
 ## Annotation pipeline
