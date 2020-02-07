@@ -255,9 +255,7 @@ class MainApplication(tk.Frame):
                                                       i + str(self.phrases[i])] = ''
                 if self.patientlevel:
                     self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(lambda x: combine_keywords(x)) 
-                    self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].str.contains("No keywords found!")
-                    self.data_model.output_df = self.data_model.output_df.sort_values(by='regex').drop(columns=['regex'])
-                    self.data_model.nokeyword_df = []
+                    self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(lambda x: 0 if "No keywords found!" in x else 1)
                 else: 
                     self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
                         lambda x: search_keywords(x))
@@ -265,10 +263,8 @@ class MainApplication(tk.Frame):
                         self.data_model.output_df['regex'] = 1
                         messagebox.showerror(title="Warning",
                                             message="No keywords found!")
-                    self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(drop=True)
-                    self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(drop=True)
-                    self.data_model.output_df = self.data_model.output_df.drop(columns=['regex'])
-                    self.data_model.nokeyword_df = self.data_model.nokeyword_df.drop(columns=['regex'])
+                self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(drop=True).drop(columns=['regex'])
+                self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(drop=True).drop(columns=['regex'])
             else:
                 self.data_model.nokeyword_df = []
         except BaseException:
