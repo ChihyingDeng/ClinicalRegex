@@ -5,6 +5,9 @@ import sys
 import xlrd
 import numpy as np
 import pandas as pd
+from nltk.stem import PorterStemmer
+from nltk.tokenize import word_tokenize
+ps = PorterStemmer()
 
 
 def _remove_punctuation(s):

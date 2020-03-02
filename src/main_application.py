@@ -2,11 +2,14 @@ import tkinter as tk
 from tkinter import font, filedialog, messagebox
 from src.model import DataModel
 from src.extract_values import run_regex
-import pandas as pd
 import ast
 import re
 import os
-
+import numpy as np
+import pandas as pd
+import spacy
+nlp = spacy.load('en_core_web_sm', disable=['parser', 'ner'])
+nlp.max_length = 3000000
 
 class MainApplication(tk.Frame):
     def __init__(self, master):
@@ -17,7 +20,7 @@ class MainApplication(tk.Frame):
         self.data_model = DataModel()
         self.positivehit = True
         self.patientlevel = False
-        self.outputlite = True
+        self.lemmatization = False
 
     # Set up button click methods
     def on_select_file(self):
@@ -53,7 +56,7 @@ class MainApplication(tk.Frame):
                 OPTIONS = pd.read_csv(
                     self.data_model.input_fname).columns.values.tolist()
             self.patient_id_entry.set(OPTIONS[0])
-            self.note_key_entry.set(OPTIONS[1])
+            self.note_key_entry.set(OPTIONS[-1])
             # note ID column
             if 'empi' in OPTIONS:
                 self.patient_id_entry.set('empi')
@@ -95,6 +98,7 @@ class MainApplication(tk.Frame):
 
 
     def on_run_regex(self):
+        self.data_model.current_row_index = 0
         if not self.data_model.input_fname:
             messagebox.showerror(
                 title="Error",
@@ -130,6 +134,7 @@ class MainApplication(tk.Frame):
 
 
     def on_load_annotation(self):
+        self.data_model.current_row_index = 0
         if not self.data_model.input_fname or '.csv' not in self.data_model.input_fname:
             messagebox.showerror(
                 title="Error",
@@ -141,27 +146,30 @@ class MainApplication(tk.Frame):
         self.data_model.output_df = pd.read_csv(
             self.data_model.input_fname)         
         columns = self.data_model.output_df.columns.values.tolist()
-        if 'L1_' not in columns[2] or 'L1_' not in columns[3] or 'L1_' not in columns[4] or 'K1_' not in columns[5]:
+
+        if 'L1_' not in columns[2] or '_span' not in columns[3] or '_text' not in columns[4] or 'keywords' not in columns[-1]:
             messagebox.showerror(
                 title="Error",
                 message="Something went wrong, did you select an appropriately output CSV file?")
             return
         self.patient_key, self.note_key = columns[:2]
         self.phrases[2] = self.phrases[3] = self.original_regex_text
-
+        self.num_keywords = tuple(int(i) for i in self.data_model.output_df.loc[0,'keywords'].split(','))
         try:
-            l, idx = 1, 2
-            while idx+3<len(columns) and l < 4 and 'L%d_'%l in columns[idx] and 'K%d_'%l in columns[idx+3]:
-                self.label_name[l] = columns[idx][3:]
-                self.phrases[l] = columns[idx+3][3:]
-                l += 1; idx += 4
+            for i in range(1, 4):
+                if 3*(i-1)+5 < len(columns) and 'L%d_'%i in columns[3*(i-1)+2]:
+                    self.label_name[i] = columns[3*(i-1)+2][3:]
+                    self.phrases[i] = self.data_model.output_df.loc[i,'keywords']
+                    num_label = i
+                else:
+                    break
         except:
             messagebox.showerror(
                 title="Error",
-                message="Something went wrong, did you select an appropriately output CSV file?")
+                message="Something went wrong, did you select an appropriately output CSV file??????")
             return
 
-        for i in range(1, l):
+        for i in range(1, num_label+1):
             self.label_text[i].delete(1.0, tk.END)
             self.label_text[i].insert(tk.END, self.label_name[i])
             self.regex_text[i].delete(1.0, tk.END)
@@ -196,17 +204,28 @@ class MainApplication(tk.Frame):
             cleaned = re.sub(r'\r', '', cleaned)
             return str(cleaned.strip())
 
+        def update_lemma_phrases_dict(text):
+            text = re.sub('[^\w\s]|[\d_]', '', text)
+            doc = nlp(' '.join(set(text.lower().replace('\n', ' ').split(' '))))
+            for token in doc:
+                if token.lemma_ in self.lemma_phrases:
+                    self.lemma_phrases_dict[token.lemma_].add(token.text) 
+
         def search_keywords(text):
-            for p in self.allphrases:
-                if p.endswith('e') or p.endswith('y'): p = p[0:-1] 
-                if re.search('((^|\s|(?<=\W))%s(s|es|ies|ed|ied|ing|ment|ement|e|y|)($|\s|(?=\W)))'%(p.lower()), text.lower()): return 1
+            for phrases in self.allphrases:
+                if re.search('(^|(?<=\W))%s($|(?=\W))'%(phrases.lower()), text.lower()): return 1
             return 0
 
-        def combine_keywords(text):
-            df = pd.DataFrame(map(' '.join, zip(*[iter(text.split(' '))]*100)), columns=['text'])
-            df['regex'] = df['text'].apply(
-                        lambda x: search_keywords(x))
-            return df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n') if any(df['regex'] == 1) else "No keywords found!"
+        def combine_keywords_notes(text):
+            output = []
+            for t in text.split('[Header_Start]'):
+                header = '%s\n%s\n%s\n'%('='*80, t.split('[Header_End]')[0], '='*80)
+                note = t.split('[Header_End]')[-1]
+                df = pd.DataFrame(map(' '.join, zip(*[iter(note.split(' '))]*100)), columns=['text'])
+                df['regex'] = df['text'].apply(lambda x: search_keywords(x))
+                if any(df['regex'] == 1):
+                    output.append(header + df[df['regex'] == 1].reset_index(drop=True)['text'].str.cat(sep='\n----\n'))
+            return '\n'.join(output) if output else 'No keywords found!'
 
         # run regex
         try:
@@ -221,40 +240,65 @@ class MainApplication(tk.Frame):
                 else:
                     self.data_model.input_df = pd.read_csv(
                         self.data_model.input_fname)
-                    self.data_model.output_df = pd.read_csv(
-                        self.data_model.input_fname, usecols=[
-                            self.patient_key, self.note_key])
-                if not self.patientlevel and (len(self.data_model.output_df) != len(self.data_model.output_df[self.patient_key].unique())):
-                    messagebox.showerror(
-                        title="Error",
-                        message="Please select an 'unique' note ID")
-                    return   
+                    input_columns = self.data_model.input_df.columns.values.tolist()
+                    output_columns = [self.patient_key, self.note_key] + list(set(input_columns) - set([self.patient_key, self.note_key]))
+                    self.data_model.output_df = self.data_model.input_df[output_columns]
+
                 self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].astype(
                     str).apply(lambda x: clean_phrase(x))  
-            else:
-                self.data_model.input_df = self.data_model.output_df = pd.read_csv(
-                    self.data_model.input_fname)              
-            # Concate report text on patient's level
-            if self.patientlevel: 
-                self.data_model.output_df = self.data_model.output_df.groupby(self.patient_key)[self.note_key].apply(lambda x: '\n'.join(x)).to_frame().reset_index()
-            # Display only positive hits
-            if self.positivehit or self.patientlevel:
+
+                # Concate report text on patient's level
+                if self.patientlevel: 
+                    def add_header(df):
+                        cols = df.index.tolist()
+                        cols.remove(self.note_key)
+                        return '[Header_Start]' + '|'.join(list(map(str, df[cols].tolist()))) + '[Header_End]' + df[self.note_key]
+                    self.data_model.output_df[self.note_key] = self.data_model.output_df.apply(add_header, axis=1)
+                    self.data_model.output_df = self.data_model.output_df.groupby(self.patient_key)[self.note_key].apply(lambda x: '\n'.join(x)).to_frame().reset_index()
+                
                 self.allphrases = []
+                length = len(self.data_model.output_df)
+                exist_labels = []
                 for i in range(1, 4):
                     if self.phrases[i] != self.original_regex_text and len(
                             self.phrases[i]) > 0:
-                        self.allphrases.extend(self.phrases[i].replace(', ',',').split(','))
-                        if not self.load_annotation:
-                            self.data_model.output_df['L%d_' %
-                                                      i + self.label_name[i]] = None
-                            self.data_model.output_df['L%d_' %
-                                                      i + self.label_name[i] + '_span'] = None
-                            self.data_model.output_df['L%d_' %
-                                                      i + self.label_name[i] + '_text'] = None
-                            self.data_model.output_df['K%d_' %
-                                                      i + str(self.phrases[i])] = ''
+                        exist_labels.append(i)
+                        self.phrases[i] = self.phrases[i].replace(', ',',')
+                        self.allphrases.extend(self.phrases[i].split(','))
+                        self.data_model.output_df.insert(3*(i-1)+2, 'L%d_' %i + self.label_name[i], 
+                                                [None]*length)
+                        self.data_model.output_df.insert(3*(i-1)+3, 'L%d_' %i + self.label_name[i] + '_span', 
+                                                [None]*length)
+                        self.data_model.output_df.insert(3*(i-1)+4, 'L%d_' %i + self.label_name[i] + '_text', 
+                                                [None]*length)
+
+                # Lemmatization and update phrases
+                if self.lemmatization:
+                    self.lemma_phrases, self.allphrases = [], []
+                    self.lemma_phrases_dict = {}
+                    for i in exist_labels:
+                        update_phrases = []
+                        for phrases in self.phrases[i].split(','):
+                            doc = nlp(phrases.lower())
+                            # don't lemmatize the phrases when phrases containing regular expression
+                            if not re.search('[^\w\s/]', phrases): 
+                                lemma = ' '.join([token.lemma_ for token in doc])
+                            else:
+                                lemma = phrases
+                            update_phrases.append(lemma)
+                            self.lemma_phrases_dict[lemma] = {phrases.lower(), lemma}
+                        self.lemma_phrases.extend(update_phrases)
+                        self.phrases[i] = ','.join(update_phrases)
+                    update_lemma_phrases_dict(self.data_model.output_df[self.note_key].str.cat(sep=' '))
+                    for i in exist_labels:
+                        update_phrases = []
+                        for phrases in self.phrases[i].split(','):
+                            update_phrases.append( '(' + '|'.join(self.lemma_phrases_dict[phrases]) + ')')
+                        self.allphrases.extend(update_phrases)
+                        self.phrases[i] = ','.join(update_phrases)
+                
                 if self.patientlevel:
-                    self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(lambda x: combine_keywords(x)) 
+                    self.data_model.output_df[self.note_key] = self.data_model.output_df[self.note_key].apply(lambda x: combine_keywords_notes(x)) 
                     self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(lambda x: 0 if "No keywords found!" in x else 1)
                 else: 
                     self.data_model.output_df['regex'] = self.data_model.output_df[self.note_key].apply(
@@ -263,10 +307,16 @@ class MainApplication(tk.Frame):
                         self.data_model.output_df['regex'] = 1
                         messagebox.showerror(title="Warning",
                                             message="No keywords found!")
-                self.data_model.nokeyword_df = self.data_model.output_df[self.data_model.output_df['regex'] == 0].reset_index(drop=True).drop(columns=['regex'])
-                self.data_model.output_df = self.data_model.output_df[self.data_model.output_df['regex'] == 1].reset_index(drop=True).drop(columns=['regex'])
+                self.num_keywords = (self.data_model.output_df[self.data_model.output_df['regex'] == 1].shape[0], self.data_model.output_df.shape[0])
+                self.data_model.output_df = self.data_model.output_df.sort_values(by='regex', ascending=False).reset_index(drop=True).drop(columns=['regex'])
+
+                self.data_model.output_df['keywords'] = ''    
+                self.data_model.output_df.loc[0,'keywords'] = str(self.num_keywords[0]) + ',' + str(self.num_keywords[1])
+                for i in exist_labels:
+                    self.data_model.output_df.loc[i,'keywords'] = str(self.phrases[i])
             else:
-                self.data_model.nokeyword_df = []
+                self.data_model.input_df = self.data_model.output_df = pd.read_csv(
+                    self.data_model.input_fname)         
         except BaseException:
             messagebox.showerror(
                 title="Error",
@@ -277,9 +327,10 @@ class MainApplication(tk.Frame):
 
 
     def refresh_model(self):
-        if not self.load_annotation:
-            self.data_model.current_row_index = 0
-        else:
+        self.data_model.num_notes = self.num_keywords[0] if self.positivehit else self.num_keywords[1]
+        if (not self.data_model.current_row_index and not self.load_annotation) or self.data_model.current_row_index > self.data_model.num_notes -1:
+                self.data_model.current_row_index = 0
+        elif not self.data_model.current_row_index and self.load_annotation:
             try:
                 self.data_model.current_row_index = self.data_model.output_df.index[
                     self.data_model.output_df['L1_' + self.label_name[1]].isna()].tolist()[0]
@@ -288,16 +339,13 @@ class MainApplication(tk.Frame):
 
         if self.data_model.input_fname:
             try:
-                self.data_model.display_df = self.data_model.output_df.copy()
-                self.data_model.num_notes = self.data_model.display_df.shape[0]
                 self.display_output_note()
             except BaseException:
                 pass
 
 
     def display_output_note(self):
-        current_note_row = self.data_model.display_df.iloc[self.data_model.current_row_index]
-        
+        current_note_row = self.data_model.output_df.iloc[self.data_model.current_row_index]
         try:
             current_note_text = current_note_row[self.note_key]
         except BaseException:
@@ -312,7 +360,6 @@ class MainApplication(tk.Frame):
                 title='Error',
                 message='Unable to retrieve note ID. Did you select the correct key?')
             return
-        
         self.number_label.config(
             text='%d of %d' %
             (self.data_model.current_row_index + 1, self.data_model.num_notes))
@@ -326,7 +373,7 @@ class MainApplication(tk.Frame):
         self.pttext.insert(tk.END, current_note_text)
         self.pttext.config(state=tk.DISABLED)
         
-        input_df = self.data_model.display_df.iloc[[
+        current_note_df = self.data_model.output_df.iloc[[
             self.data_model.current_row_index]]
         
         for i in range(1, 4):
@@ -340,11 +387,12 @@ class MainApplication(tk.Frame):
                     i +
                     self.label_name[i] +
                     '_span',
-                    input_df)
+                    current_note_df)
                 value = current_note_row["L%d_" %i + self.label_name[i]]
-                if (not value or value.astype(str) == 'nan')and match_indices: value = '1'
-                elif not value or value.astype(str) == 'nan' : value = '0'
-                else: value = value.astype(str)
+                if not value or np.isnan(value):
+                    value = 1 if match_indices else 0
+                else:
+                    value = value.astype('Int64')
                 self.ann_text[i].delete(0, tk.END)
                 self.ann_text[i].insert(0, value)
         self.pttext.tag_raise("sel")
@@ -353,20 +401,19 @@ class MainApplication(tk.Frame):
             self.length[i] = l
             l += int(self.pttext.index(str(i) + ".end").split('.')[1]) + 1
 
-
     def find_matches(
             self,
             phrases,
             keyword,
             label_name,
-            input_df):
+            current_note_df):
         match_indices = self.data_model.output_df.at[self.data_model.current_row_index, label_name]
 
         if match_indices and isinstance(match_indices, str):
-            match_indices = [i.split(',') for i in match_indices.split('|')]
+            match_indices = [i.split('-') for i in match_indices.split('|')]
         else:
             match_indices = run_regex(
-                input_df,
+                current_note_df,
                 phrases,
                 self.data_model.current_row_index,
                 False,
@@ -383,7 +430,7 @@ class MainApplication(tk.Frame):
         return match_indices
 
 
-    def save_matches(self, keyword, label_name, value='1'):
+    def save_matches(self, keyword, label_name, value=1):
         tags = self.pttext.tag_ranges(keyword)
         match = ''
         text = ''
@@ -396,13 +443,13 @@ class MainApplication(tk.Frame):
                 text += '|'
                 match += '|'
             text += '{}'.format(self.pttext.get(tags[i], tags[i + 1]))
-            match += '{},{}'.format(start, end)
-        current_row_index = self.data_model.display_df.index[self.data_model.current_row_index]
-        if match and value == '0': value = '1'
-        self.data_model.output_df.at[current_row_index, label_name] = value
-        self.data_model.output_df.at[current_row_index,
+            match += '{}-{}'.format(start, end)
+        current_row_index = self.data_model.output_df.index[self.data_model.current_row_index]
+        if match and value == 0: value = 1
+        self.data_model.output_df.loc[current_row_index, label_name] = value
+        self.data_model.output_df.loc[current_row_index,
                                      label_name + '_span'] = match
-        self.data_model.output_df.at[current_row_index,
+        self.data_model.output_df.loc[current_row_index,
                                      label_name + '_text'] = text
 
 
@@ -414,7 +461,13 @@ class MainApplication(tk.Frame):
         for i in range(1, 4):
             if self.phrases[i] != self.original_regex_text and len(
                     self.phrases[i]) > 0:
-                value = self.ann_text[i].get()
+                try:
+                    value = np.int64(self.ann_text[i].get())
+                except:
+                    messagebox.showerror(
+                        title='Error',
+                        message='Please enter an integer for annotation value.')
+                    return "error"
                 self.save_matches(
                     "keyword_%d" %
                     i,
@@ -422,36 +475,28 @@ class MainApplication(tk.Frame):
                     i +
                     self.label_name[i],
                     value)
-        if self.outputlite:
-            self.data_model.save_df = self.data_model.output_df
-        else:
-            # concat all the rows with or without keywords
-            if len(self.data_model.nokeyword_df) > 0:
-                self.data_model.save_df = pd.concat(
-                    [self.data_model.output_df, self.data_model.nokeyword_df], axis=0, sort=False)
-            else:
-                self.data_model.save_df = self.data_model.output_df
-            # merge all the input file columns
-            if not self.patientlevel and not self.load_annotation:
-                self.data_model.save_df = pd.merge(
-                    self.data_model.save_df.drop(columns=[self.note_key]),
-                    self.data_model.input_df,
-                    on=self.patient_key)
+        self.data_model.save_df = self.data_model.output_df
         self.data_model.note_key = self.note_key
         self.data_model.write_to_annotation()
-
+        return "done"
 
     def on_prev(self):
-        self.on_save_annotation()
-        if self.data_model.current_row_index > 0:
-            self.data_model.current_row_index -= 1
-        self.display_output_note()
+        msg = self.on_save_annotation()
+        if msg == "done":
+            if self.data_model.current_row_index > 0:
+                self.data_model.current_row_index -= 1
+            else:
+                self.data_model.current_row_index = self.data_model.num_notes - 1
+            self.display_output_note()
 
     def on_next(self):
-        self.on_save_annotation()
-        if self.data_model.current_row_index < self.data_model.num_notes:
-            self.data_model.current_row_index += 1
-        self.display_output_note()
+        msg = self.on_save_annotation()
+        if msg == "done":
+            if self.data_model.current_row_index < self.data_model.num_notes - 1:
+                self.data_model.current_row_index += 1
+            else:
+                self.data_model.current_row_index = 0
+            self.display_output_note()
 
     def on_add_annotation(self):
         self.modify_annotation('add')
@@ -486,12 +531,7 @@ class MainApplication(tk.Frame):
             widget.delete(1.0, 'end-1c')
 
     def on_positive_checkbox_click(self, event, widget):
-        if self.positivehit:
-            self.positivehit = False
-        else:
-            self.positivehit = True
-        if self.data_model.output_df is not None:
-            self.on_run_regex()
+        self.positivehit = False if self.positivehit else True
         self.refresh_model()
 
     def on_patient_checkbox_click(self, event, widget):
@@ -502,11 +542,11 @@ class MainApplication(tk.Frame):
             self.patientlevel = True
             self.patient_id_label.config(text='Patient ID column: ')
 
-    def on_output_checkbox_click(self, event, widget):
-        if self.outputlite:
-            self.outputlite = False
+    def on_lemmatization_checkbox_click(self, event, widget):
+        if self.lemmatization:
+            self.lemmatization = False
         else:
-            self.outputlite = True
+            self.lemmatization = True
 
     def on_radio_click(self):
         self.label = self.radio_value.get()
@@ -770,21 +810,21 @@ class MainApplication(tk.Frame):
                 event,
                 self.patient_checkbox))
 
-        output_checkbox_var = tk.BooleanVar()
-        output_checkbox_var.set(True)
-        self.output_checkbox = tk.Checkbutton(
+        lemmatization_checkbox_var = tk.BooleanVar()
+        lemmatization_checkbox_var.set(True)
+        self.lemmatization_checkbox = tk.Checkbutton(
             self.right_options_frame,
-            text='Lite output',
+            text='Lemmatization',
             font=labelfont,
             bg=right_bg_color,
-            variable=output_checkbox_var,
+            variable=lemmatization_checkbox_var,
             offvalue=False,
             onvalue=True)
-        self.output_checkbox.var = output_checkbox_var
-        self.output_checkbox.grid(column=1, row=1, sticky='ens')
-        self.output_checkbox.bind(
+        self.lemmatization_checkbox.var = lemmatization_checkbox_var
+        self.lemmatization_checkbox.grid(column=1, row=1, sticky='ens')
+        self.lemmatization_checkbox.bind(
             "<Button-1>",
-            lambda event: self.on_output_checkbox_click(
+            lambda event: self.on_lemmatization_checkbox_click(
                 event,
                 self.patient_checkbox))
 
